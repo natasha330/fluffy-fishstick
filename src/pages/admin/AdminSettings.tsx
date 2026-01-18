@@ -26,9 +26,9 @@ export default function AdminSettings() {
   const [telegramStatus, setTelegramStatus] = useState<'idle' | 'success' | 'error'>('idle');
   
   const [siteSettings, setSiteSettings] = useState({
-    siteName: 'AlibabaClone',
+    siteName: 'Alibaba',
     siteDescription: 'B2B E-commerce Marketplace',
-    contactEmail: 'support@alibaba-clone.com',
+    contactEmail: 'support@alibaba.com',
     supportPhone: '+1 (555) 123-4567',
   });
 
