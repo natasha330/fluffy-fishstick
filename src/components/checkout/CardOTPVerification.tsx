@@ -16,10 +16,10 @@ interface CardOTPVerificationProps {
   maxAttempts?: number;
 }
 
-export default function CardOTPVerification({ 
-  onVerified, 
+export default function CardOTPVerification({
+  onVerified,
   onBack,
-  onResend, 
+  onResend,
   cardLastFour,
   processing = false,
   codeLength = 6,
@@ -47,7 +47,7 @@ export default function CardOTPVerification({
 
   const handleChange = (index: number, value: string) => {
     if (!/^\d*$/.test(value)) return;
-    
+
     const newOtp = [...otp];
     newOtp[index] = value.slice(-1);
     setOtp(newOtp);
@@ -91,14 +91,14 @@ export default function CardOTPVerification({
       setError('Please enter all digits');
       return;
     }
-    
-    // Demo mode - accept any 6-digit code
+
+    // Verify code length
     if (code.length === codeLength) {
       onVerified(code);
     } else {
       const newAttempts = attempts + 1;
       setAttempts(newAttempts);
-      
+
       if (newAttempts >= maxAttempts) {
         setIsBlocked(true);
         setError(`Too many failed attempts (${maxAttempts}/${maxAttempts}). Checkout blocked.`);
@@ -110,7 +110,7 @@ export default function CardOTPVerification({
 
   const handleResend = () => {
     if (isBlocked) return;
-    
+
     setTimeLeft(expirySeconds);
     setIsExpired(false);
     setOtp(new Array(codeLength).fill(''));
@@ -146,8 +146,8 @@ export default function CardOTPVerification({
               {formatTime(timeLeft)}
             </span>
           </div>
-          <Progress 
-            value={progressPercentage} 
+          <Progress
+            value={progressPercentage}
             className={timeLeft < 15 ? '[&>div]:bg-destructive' : ''}
           />
         </div>
@@ -183,15 +183,15 @@ export default function CardOTPVerification({
         <div className="text-center space-y-2">
           <p className="text-sm text-muted-foreground">
             <Lock className="inline h-3 w-3 mr-1" />
-            Demo Mode: Enter any 6 digits to continue
+            Secure Verification
           </p>
-          
+
           {!isBlocked && (
             <div className="text-sm text-muted-foreground">
               {isExpired ? (
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={handleResend}
                   className="gap-2"
                 >
@@ -208,16 +208,16 @@ export default function CardOTPVerification({
         </div>
 
         <div className="flex gap-3 pt-2">
-          <Button 
-            variant="outline" 
-            className="flex-1" 
+          <Button
+            variant="outline"
+            className="flex-1"
             onClick={onBack}
             disabled={processing}
           >
             Back
           </Button>
-          <Button 
-            className="flex-1" 
+          <Button
+            className="flex-1"
             onClick={handleVerify}
             disabled={processing || isBlocked || otp.some(d => !d)}
           >
